@@ -44,10 +44,6 @@ jobs:
              -H "Content-Type: application/json" \
              -d "$JSON_PAYLOAD" \
              http://localhost:3200/api/getGuild > data/guild_response_${{ env.DATE_STRING }}_${{ env.UNIQUE_ID }}.json
-      env:
-        # You might need to set an API key or other credentials here if required by the API
-        # For swgoh-comlink, typically no API key is needed for public endpoints like getGuild
-        # SWGOH_COMLINK_API_KEY: ${{ secrets.SWGOH_COMLINK_API_KEY }} # Example for a secret API key
 
     - name: Commit and push response # This action will create the 'data' folder in the repo if it's new
       uses: EndBug/add-and-commit@v9
