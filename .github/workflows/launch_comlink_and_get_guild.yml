@@ -13,7 +13,7 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v4
 
-    - name: Create data directory
+    - name: Create data directory # This creates the directory locally if it doesn't exist
       run: mkdir -p data
 
     - name: Get current date and unique ID
@@ -32,7 +32,6 @@ jobs:
 
     - name: Execute POST request to /getGuild and save response
       run: |
-        # Define the JSON payload in a variable or directly in the curl command
         JSON_PAYLOAD='{
           "payload": {
             "guildId": "GbsabjvbQESUd8r_qPqdYg",
@@ -45,10 +44,14 @@ jobs:
              -H "Content-Type: application/json" \
              -d "$JSON_PAYLOAD" \
              http://localhost:3200/api/getGuild > data/guild_response_${{ env.DATE_STRING }}_${{ env.UNIQUE_ID }}.json
+      env:
+        # You might need to set an API key or other credentials here if required by the API
+        # For swgoh-comlink, typically no API key is needed for public endpoints like getGuild
+        # SWGOH_COMLINK_API_KEY: ${{ secrets.SWGOH_COMLINK_API_KEY }} # Example for a secret API key
 
-    - name: Commit and push response
+    - name: Commit and push response # This action will create the 'data' folder in the repo if it's new
       uses: EndBug/add-and-commit@v9
       with:
-        add: 'data/guild_response_${{ env.DATE_STRING }}_${{ env.UNIQUE_ID }}.json' # Update to use the dynamic filename
+        add: 'data/guild_response_${{ env.DATE_STRING }}_${{ env.UNIQUE_ID }}.json'
         message: 'feat: Add SWGOH Guild API response for ${{ env.DATE_STRING }} (ID: ${{ env.UNIQUE_ID }})'
-        branch: ${{ github.ref_name }} 
+        branch: ${{ github.ref_name }}
