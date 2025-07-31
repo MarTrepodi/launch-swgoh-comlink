@@ -1,0 +1,54 @@
+name: Run swgoh-comlink container and query API
+
+on:
+  workflow_dispatch: # Allows manual triggering of the workflow
+
+jobs:
+  run-container-and-query:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # Grant write permission for the GITHUB_TOKEN to push changes
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Create data directory
+      run: mkdir -p data
+
+    - name: Get current date and unique ID
+      id: date_id_step
+      run: |
+        echo "DATE_STRING=$(date +%Y-%m-%d)" >> $GITHUB_ENV
+        echo "UNIQUE_ID=$(head /dev/urandom | tr -dc A-Za-z0-9 | head -c 8)" >> $GITHUB_ENV
+      # This sets environment variables DATE_STRING (YYYY-MM-DD) and UNIQUE_ID (8-char alphanumeric)
+
+    - name: Run swgoh-comlink container
+      id: run-container
+      run: |
+        docker run -d --rm --name swgoh-comlink -p 3200:3000 --env APP_NAME=gh-action-comlink ghcr.io/swgoh-utils/swgoh-comlink:latest
+        # Give the container a moment to start up
+        sleep 10
+
+    - name: Execute POST request to /getGuild and save response
+      run: |
+        # Define the JSON payload in a variable or directly in the curl command
+        JSON_PAYLOAD='{
+          "payload": {
+            "guildId": "GbsabjvbQESUd8r_qPqdYg",
+            "includeRecentGuildActivityInfo": true
+          },
+          "enums": false
+        }'
+        
+        curl -X POST \
+             -H "Content-Type: application/json" \
+             -d "$JSON_PAYLOAD" \
+             http://localhost:3200/api/getGuild > data/guild_response_${{ env.DATE_STRING }}_${{ env.UNIQUE_ID }}.json
+
+    - name: Commit and push response
+      uses: EndBug/add-and-commit@v9
+      with:
+        add: 'data/guild_response_${{ env.DATE_STRING }}_${{ env.UNIQUE_ID }}.json' # Update to use the dynamic filename
+        message: 'feat: Add SWGOH Guild API response for ${{ env.DATE_STRING }} (ID: ${{ env.UNIQUE_ID }})'
+        branch: ${{ github.ref_name }} 
