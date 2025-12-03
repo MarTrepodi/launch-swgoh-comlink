@@ -34,7 +34,7 @@ jobs:
       run: |
         JSON_PAYLOAD='{
           "payload": {
-            "guildId": "GbsabjvbQESUd8r_qPqdYg",
+            "guildId": "<PLACE GUILD ID HERE>",
             "includeRecentGuildActivityInfo": true
           },
           "enums": false
