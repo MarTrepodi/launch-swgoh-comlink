@@ -30,11 +30,15 @@ jobs:
         # Give the container a moment to start up
         sleep 10
 
+    - name: Get game metadata
+      run: |
+        echo "MD_VERSION=$(curl -q -X POST -H 'Content-Type: application/json' -d '{}' http://localhost:3200/metadata | jq '.latestGamedataVersion')" >> $GITHUB_ENV
+
     - name: Execute POST request to /data and save response
       run: |
         JSON_PAYLOAD='{
           "payload": {
-            "version": "<PLACE GUILD ID HERE>",
+            "version": ${{ env.MD_VERSION }},
             "devicePlatform": "Android",
             "includePveUnits": false,
             "items": "137438953472"
@@ -45,7 +49,7 @@ jobs:
         curl -X POST \
              -H "Content-Type: application/json" \
              -d "$JSON_PAYLOAD" \
-             http://localhost:3200/data > data/guild_response_${{ env.DATE_STRING }}_${{ env.UNIQUE_ID }}.json
+             http://localhost:3200/data > /data/units_response_${{ env.DATE_STRING }}_${{ env.UNIQUE_ID }}.json
 
     - name: Commit and push response # This action will create the 'data' folder in the repo if it's new
       uses: EndBug/add-and-commit@v9
