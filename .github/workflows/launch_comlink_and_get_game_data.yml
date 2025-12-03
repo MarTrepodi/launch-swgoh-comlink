@@ -52,4 +52,3 @@ jobs:
       with:
         add: 'data/units_response_${{ env.DATE_STRING }}_${{ env.UNIQUE_ID }}.json'
         message: 'feat: Add SWGOH Guild API response for ${{ env.DATE_STRING }} (ID: ${{ env.UNIQUE_ID }})'
-        branch: ${{ github.ref_name }}
