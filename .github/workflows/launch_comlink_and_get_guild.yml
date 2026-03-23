@@ -46,7 +46,7 @@ jobs:
              http://localhost:3200/guild > data/guild_response_${{ env.DATE_STRING }}_${{ env.UNIQUE_ID }}.json
 
     - name: Commit and push response # This action will create the 'data' folder in the repo if it's new
-      uses: EndBug/add-and-commit@v9
+      uses: EndBug/add-and-commit@v10
       with:
         add: 'data/guild_response_${{ env.DATE_STRING }}_${{ env.UNIQUE_ID }}.json'
         message: 'feat: Add SWGOH Guild API response for ${{ env.DATE_STRING }} (ID: ${{ env.UNIQUE_ID }})'
