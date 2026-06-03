@@ -1,0 +1,53 @@
+name: Scheduled fetch of multiple /data items
+
+on:
+  workflow_dispatch:
+    inputs:
+      items_file:
+        description: 'Path to items list file (one items bitmask per line)'
+        required: false
+        default: 'scripts/items_default.txt'
+  schedule:
+    - cron: '17 9 * * *' # daily at 09:17 UTC
+
+jobs:
+  run-container-and-query:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v6
+
+    - name: Create data directory
+      run: mkdir -p data
+
+    - name: Get current date and unique ID
+      id: date_id_step
+      run: |
+        echo "DATE_STRING=$(date +%Y-%m-%d)" >> $GITHUB_ENV
+        echo "UNIQUE_ID=$(head /dev/urandom | tr -dc A-Za-z0-9 | head -c 8)" >> $GITHUB_ENV
+
+    - name: Run swgoh-comlink container
+      id: run-container
+      run: |
+        docker run -d --rm --name swgoh-comlink -p 3200:3000 --env APP_NAME=gh-action-comlink ghcr.io/swgoh-utils/swgoh-comlink:latest
+        sleep 10
+
+    - name: Get game metadata
+      run: |
+        echo "MD_VERSION=$(curl -q -X POST -H 'Content-Type: application/json' -d '{}' http://localhost:3200/metadata | jq '.latestGamedataVersion')" >> $GITHUB_ENV
+
+    - name: Run fetch script
+      env:
+        ITEMS_FILE: ${{ github.event.inputs.items_file || 'scripts/items_default.txt' }}
+      run: |
+        chmod +x scripts/fetch_data_items.sh
+        scripts/fetch_data_items.sh "$ITEMS_FILE"
+
+    - name: Commit and push responses
+      uses: EndBug/add-and-commit@v9
+      with:
+        add: 'data/data_response_${{ env.DATE_STRING }}_*_${{ env.UNIQUE_ID }}.json'
+        message: 'feat: Add SWGOH /data responses for ${{ env.DATE_STRING }} (ID: ${{ env.UNIQUE_ID }})'
