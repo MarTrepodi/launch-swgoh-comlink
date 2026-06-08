@@ -47,7 +47,7 @@ jobs:
         scripts/fetch_data_items.sh "$ITEMS_FILE"
 
     - name: Commit and push responses
-      uses: EndBug/add-and-commit@v9
+      uses: EndBug/add-and-commit@v10
       with:
         add: 'data/data_response_${{ env.DATE_STRING }}_*_${{ env.UNIQUE_ID }}.json'
         message: 'feat: Add SWGOH /data responses for ${{ env.DATE_STRING }} (ID: ${{ env.UNIQUE_ID }})'
