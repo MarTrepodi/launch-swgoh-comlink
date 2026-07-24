@@ -34,25 +34,19 @@ jobs:
       run: |
         echo "MD_VERSION=$(curl -q -X POST -H 'Content-Type: application/json' -d '{}' http://localhost:3200/metadata | jq '.latestGamedataVersion')" >> $GITHUB_ENV
 
-    - name: Execute POST request to /data and save response
+    - name: Fetch units collection from /data
+      # Delegates to the shared fetch script so this workflow gets the same status
+      # checking, response validation and retry behaviour as the scheduled run.
+      env:
+        FILE_PREFIX: units_response
+        UNITS_ITEM: '137438953472'
       run: |
-        JSON_PAYLOAD='{
-          "payload": {
-            "version": ${{ env.MD_VERSION }},
-            "devicePlatform": "Android",
-            "includePveUnits": false,
-            "items": "137438953472"
-          },
-          "enums": false
-        }'
-        
-        curl -X POST \
-             -H "Content-Type: application/json" \
-             -d "$JSON_PAYLOAD" \
-             http://localhost:3200/data > data/units_response_${{ env.DATE_STRING }}_${{ env.UNIQUE_ID }}.json
+        chmod +x scripts/fetch_data_items.sh
+        printf '%s\n' "$UNITS_ITEM" > "$RUNNER_TEMP/units_item.txt"
+        scripts/fetch_data_items.sh "$RUNNER_TEMP/units_item.txt"
 
     - name: Commit and push response # This action will create the 'data' folder in the repo if it's new
       uses: EndBug/add-and-commit@v10
       with:
-        add: 'data/units_response_${{ env.DATE_STRING }}_${{ env.UNIQUE_ID }}.json'
-        message: 'feat: Add SWGOH Guild API response for ${{ env.DATE_STRING }} (ID: ${{ env.UNIQUE_ID }})'
+        add: 'data/units_response_${{ env.DATE_STRING }}_*_${{ env.UNIQUE_ID }}.json'
+        message: 'feat: Add SWGOH /data units collection response for ${{ env.DATE_STRING }} (ID: ${{ env.UNIQUE_ID }})'
