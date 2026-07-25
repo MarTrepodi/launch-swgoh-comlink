@@ -7,8 +7,8 @@ on:
         description: 'Path to items list file (one items bitmask per line)'
         required: false
         default: 'scripts/items_default.txt'
-  schedule:
-    - cron: '17 9 * * *' # daily at 09:17 UTC
+  # schedule:
+  #  - cron: '17 9 * * *' # daily at 09:17 UTC
 
 jobs:
   run-container-and-query:
