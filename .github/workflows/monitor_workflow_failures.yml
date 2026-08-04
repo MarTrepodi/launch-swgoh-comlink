@@ -1,0 +1,91 @@
+name: Monitor workflow failures
+
+# Keeps one open issue per repeatedly-failing workflow. An issue is opened when
+# a workflow's most recent completed runs on a branch are FAILURE_THRESHOLD
+# consecutive failures, updated in place while the failures continue (edits do
+# not notify, so a long outage stays a single notification), and closed by the
+# next successful run. One issue per workflow, keyed by title + label — a
+# failure that is already raised is never raised again.
+
+on:
+  workflow_run:
+    workflows:
+      - Run swgoh-comlink container and query API /data endpoint for units collection
+      - Run swgoh-comlink container and query API
+      - Scheduled fetch of multiple /data items
+      - Cleanup old data files
+    types: [completed]
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      actions: read
+
+    steps:
+    - name: Open, update, or close the failure issue for this workflow
+      env:
+        GH_TOKEN: ${{ github.token }}
+        REPO: ${{ github.repository }}
+        WF_NAME: ${{ github.event.workflow_run.name }}
+        WF_ID: ${{ github.event.workflow_run.workflow_id }}
+        CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+        RUN_URL: ${{ github.event.workflow_run.html_url }}
+        BRANCH: ${{ github.event.workflow_run.head_branch }}
+        LABEL: workflow-failure
+        FAILURE_THRESHOLD: '2'
+      run: |
+        set -euo pipefail
+
+        title="Repeated failures: ${WF_NAME}"
+        existing=$(gh issue list --repo "$REPO" --label "$LABEL" --state open \
+          --limit 100 --json number,title \
+          | jq -r --arg t "$title" '.[] | select(.title == $t) | .number' | head -1)
+
+        if [ "$CONCLUSION" = "success" ]; then
+          if [ -n "$existing" ]; then
+            gh issue close "$existing" --repo "$REPO" \
+              --comment "Recovered: [latest run](${RUN_URL}) succeeded."
+            echo "closed issue #${existing}"
+          else
+            echo "success and no open issue; nothing to do"
+          fi
+          exit 0
+        fi
+
+        if [ "$CONCLUSION" != "failure" ]; then
+          echo "conclusion is ${CONCLUSION}; only failures are monitored"
+          exit 0
+        fi
+
+        # Count the streak of consecutive failures, newest first, on the same
+        # branch. The run that triggered this event is included in the list.
+        consecutive=0
+        while IFS= read -r c; do
+          [ "$c" = "failure" ] || break
+          consecutive=$((consecutive + 1))
+        done < <(gh api "repos/${REPO}/actions/workflows/${WF_ID}/runs?branch=${BRANCH}&status=completed&per_page=10" \
+          --jq '.workflow_runs[].conclusion')
+        echo "consecutive failures on ${BRANCH}: ${consecutive}"
+
+        if [ "$consecutive" -lt "$FAILURE_THRESHOLD" ]; then
+          echo "below threshold of ${FAILURE_THRESHOLD}; not raising an issue yet"
+          exit 0
+        fi
+
+        body="The workflow **${WF_NAME}** has failed ${consecutive} times in a row on \`${BRANCH}\`.
+
+        Latest failing run: ${RUN_URL}
+
+        This issue was opened automatically and will be closed by the next successful run. While the failures continue, only this body is updated — no new issues and no new notifications."
+
+        if [ -n "$existing" ]; then
+          gh issue edit "$existing" --repo "$REPO" --body "$body"
+          echo "updated existing issue #${existing}; not creating a duplicate"
+        else
+          gh label create "$LABEL" --repo "$REPO" --force \
+            --description 'A workflow is failing repeatedly' --color 'B60205'
+          gh issue create --repo "$REPO" --title "$title" --label "$LABEL" --body "$body"
+          echo "opened new issue"
+        fi
