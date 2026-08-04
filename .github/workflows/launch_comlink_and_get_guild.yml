@@ -27,8 +27,23 @@ jobs:
       id: run-container
       run: |
         docker run -d --rm --name swgoh-comlink -p 3200:3000 --env APP_NAME=gh-action-comlink ghcr.io/swgoh-utils/swgoh-comlink:latest
-        # Give the container a moment to start up
-        sleep 10
+
+    - name: Wait for comlink to accept requests
+      # A fixed sleep let a slow start surface as a request failure that looked
+      # like an upstream outage. Poll instead, and fail loudly if the container
+      # never comes up.
+      run: |
+        for i in $(seq 1 30); do
+          if curl -sf -X POST -H 'Content-Type: application/json' -d '{}' \
+               http://localhost:3200/metadata >/dev/null; then
+            echo "comlink ready after ${i} attempt(s)"
+            exit 0
+          fi
+          sleep 2
+        done
+        echo "comlink did not become ready within 60s" >&2
+        docker logs swgoh-comlink >&2 || true
+        exit 1
 
     - name: Execute POST request to /getGuild and save response
       run: |

@@ -27,12 +27,37 @@ jobs:
       id: run-container
       run: |
         docker run -d --rm --name swgoh-comlink -p 3200:3000 --env APP_NAME=gh-action-comlink ghcr.io/swgoh-utils/swgoh-comlink:latest
-        # Give the container a moment to start up
-        sleep 10
+
+    - name: Wait for comlink to accept requests
+      # A fixed sleep let a slow start surface as a /data failure that looked like
+      # an upstream outage. Poll instead, and fail loudly if the container never
+      # comes up.
+      run: |
+        for i in $(seq 1 30); do
+          if curl -sf -X POST -H 'Content-Type: application/json' -d '{}' \
+               http://localhost:3200/metadata >/dev/null; then
+            echo "comlink ready after ${i} attempt(s)"
+            exit 0
+          fi
+          sleep 2
+        done
+        echo "comlink did not become ready within 60s" >&2
+        docker logs swgoh-comlink >&2 || true
+        exit 1
 
     - name: Get game metadata
+      # jq prints the string `null` for a missing key, which is non-empty and so
+      # slips past the fetch script's own guard. An unguarded null version reaches
+      # EA as a malformed request and comes back as an upstream no-response —
+      # indistinguishable from a real outage. Assert a usable version here instead.
       run: |
-        echo "MD_VERSION=$(curl -q -X POST -H 'Content-Type: application/json' -d '{}' http://localhost:3200/metadata | jq '.latestGamedataVersion')" >> $GITHUB_ENV
+        MD_VERSION=$(curl -sS -X POST -H 'Content-Type: application/json' -d '{}' \
+          http://localhost:3200/metadata | jq '.latestGamedataVersion')
+        if [ -z "$MD_VERSION" ] || [ "$MD_VERSION" = "null" ] || [ "$MD_VERSION" = '""' ]; then
+          echo "/metadata returned no usable latestGamedataVersion (got: ${MD_VERSION:-<empty>})" >&2
+          exit 1
+        fi
+        echo "MD_VERSION=$MD_VERSION" >> $GITHUB_ENV
 
     - name: Fetch units collection from /data
       # Delegates to the shared fetch script so this workflow gets the same status
