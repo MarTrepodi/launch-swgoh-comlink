@@ -26,17 +26,28 @@ fi
 
 mkdir -p "$OUT_DIR"
 
-# Describes what is wrong with a /data response; prints nothing when it is usable.
-# Comlink reports an upstream failure as {"code":N,"message":"..."} — a body that
-# parses as JSON but carries no game data, so a status check alone will not catch it.
-describe_response() {
-  jq -r '
-    if type != "object" then "response is not a JSON object"
-    elif has("message") then "comlink says: " + (.message | tostring)
+# Classifies a /data response as "<cause><TAB><detail>".
+#
+# `ok` means the body carries usable game data. The others name a distinct
+# failure mode:
+#   upstream_no_response  comlink reached EA and got no usable data back. It
+#                         reports this as a {"code":N,"message":"..."} envelope —
+#                         valid JSON carrying no game data, which a status check
+#                         alone would not catch. Treat the message text as "the
+#                         upstream call returned nothing usable" and nothing more
+#                         specific (see docs/adr/0001).
+#   http_error            non-200 without a comlink envelope.
+#   empty_collections     200 and well-formed, but every collection is empty.
+#   invalid_json          body is not a JSON object.
+classify_response() {
+  jq -r --arg http "$2" '
+    if type != "object" then "invalid_json\tresponse is not a JSON object"
+    elif has("message") then "upstream_no_response\tcomlink says: " + (.message | tostring)
+    elif $http != "200" then "http_error\tunexpected status " + $http
     elif ([to_entries[] | select((.value | type) == "array" and (.value | length) > 0)] | length) == 0
-      then "response contains no populated collections"
-    else empty
-    end' "$1" 2>/dev/null || echo "response is not valid JSON"
+      then "empty_collections\tresponse contains no populated collections"
+    else "ok\t"
+    end' "$1" 2>/dev/null || printf 'invalid_json\tresponse is not valid JSON\n'
 }
 
 fail=0
@@ -52,6 +63,8 @@ while IFS= read -r line || [ -n "$line" ]; do
   attempt=1
   delay="$RETRY_BASE_DELAY"
   ok=0
+  cause="http_error"
+  detail="no attempt completed"
   while [ "$attempt" -le "$MAX_ATTEMPTS" ]; do
     http=$(curl -sS -o "$out" -w '%{http_code}' -X POST \
       --connect-timeout 20 --max-time 600 \
@@ -59,13 +72,16 @@ while IFS= read -r line || [ -n "$line" ]; do
       -d "$payload" \
       "$COMLINK_URL/data")
 
-    problem="$(describe_response "$out")"
-    if [ "$http" = "200" ] && [ -z "$problem" ]; then
+    verdict="$(classify_response "$out" "$http")"
+    cause="${verdict%%$'\t'*}"
+    detail="${verdict#*$'\t'}"
+
+    if [ "$cause" = "ok" ]; then
       ok=1
       break
     fi
 
-    echo "  attempt $attempt/$MAX_ATTEMPTS failed: item=$item http=$http ${problem}" >&2
+    echo "  attempt $attempt/$MAX_ATTEMPTS failed: item=$item http=$http cause=$cause ${detail}" >&2
     rm -f "$out"
 
     attempt=$((attempt + 1))
@@ -79,7 +95,7 @@ while IFS= read -r line || [ -n "$line" ]; do
   if [ "$ok" = 1 ]; then
     echo "OK   item=$item -> $out"
   else
-    echo "FAIL item=$item after $MAX_ATTEMPTS attempts" >&2
+    echo "FAIL item=$item after $MAX_ATTEMPTS attempts (cause=$cause)" >&2
     fail=1
   fi
 done < "$ITEMS_FILE"
