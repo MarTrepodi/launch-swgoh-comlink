@@ -1,0 +1,36 @@
+name: Cleanup old data files
+
+on:
+  workflow_dispatch:
+    inputs:
+      max_age_days:
+        description: 'Delete capture files older than this many days'
+        required: false
+        default: '30'
+  schedule:
+    - cron: '47 11 * * *' # daily at 11:47 UTC, after the morning fetch
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      MAX_AGE_DAYS: ${{ github.event.inputs.max_age_days || '30' }}
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v7
+
+    - name: Delete capture files past retention
+      run: |
+        chmod +x scripts/cleanup_old_data.sh
+        scripts/cleanup_old_data.sh
+
+    - name: Commit and push deletions
+      # `git add data` (which this action runs) stages deletions as well as
+      # additions; the action is a no-op when nothing was deleted.
+      uses: EndBug/add-and-commit@v10
+      with:
+        add: 'data'
+        message: 'chore: remove capture files older than ${{ env.MAX_AGE_DAYS }} days'
