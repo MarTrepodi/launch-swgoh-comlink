@@ -32,7 +32,7 @@ jobs:
     - name: Run swgoh-comlink container
       id: run-container
       run: |
-        docker run -d --rm --name swgoh-comlink -p 3200:3000 --env APP_NAME=gh-action-comlink ghcr.io/swgoh-utils/swgoh-comlink:latest
+        docker run -d --rm --name swgoh-comlink -p 3200:3000 --env SWARM_SIZE=1 --env APP_NAME=gh-action-comlink ghcr.io/swgoh-utils/swgoh-comlink:latest
 
     - name: Wait for comlink to accept requests
       # A fixed sleep let a slow start surface as a /data failure that looked like
