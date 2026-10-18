@@ -71,7 +71,7 @@ jobs:
         scripts/fetch_data_items.sh "$RUNNER_TEMP/units_item.txt"
 
     - name: Commit and push response # This action will create the 'data' folder in the repo if it's new
-      uses: EndBug/add-and-commit@v10
+      uses: EndBug/add-and-commit@v11
       with:
         add: 'data/units_response_${{ env.DATE_STRING }}_*_${{ env.UNIQUE_ID }}.json'
         message: 'feat: Add SWGOH /data units collection response for ${{ env.DATE_STRING }} (ID: ${{ env.UNIQUE_ID }})'
