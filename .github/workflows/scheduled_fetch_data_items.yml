@@ -8,7 +8,7 @@ on:
         required: false
         default: 'scripts/items_default.txt'
   schedule:
-    - cron: '17 9 * * *' # daily at 09:17 UTC
+    - cron: '17 9 * * 1' # daily at 09:17 UTC
 
 jobs:
   run-container-and-query:
